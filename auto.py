@@ -62,13 +62,4 @@ def show_all_trades():
         print(f"{'ID':<5}{'수량':<10}{'1BTC당 가격(USD)':<20}{'거래 시각'}")
         for row in rows:
             print(f"{row[0]:<5}{row[1]:<10.5f}${row[2]:<19.2f}{row[3]}")
-
-# ✅ 예시 실행
-if __name__ == "__main__":
-    init_db()
-
-    # 예시: 0.01 BTC 매수 (현재 시세로 자동 저장)
-    save_trade(0.01)
-
-    # 거래 내역 출력
-    show_all_trades()
+save_trade(0.01)

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>BTC 시세</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f7f7f7;
+        }
+
+        h2, h3 {
+            margin-top: 0;
+        }
+
+        #container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 40px;
+        }
+
+        #chart-container {
+            flex: 2;
+        }
+
+        #side-panel {
+            flex: 1;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.1);
+        }
+
+        select, input, button {
+            padding: 8px;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        canvas {
+            width: 100%;
+            height: 500px;
+        }
+
+        form {
+            margin-bottom: 30px;
+        }
+
+        .profit-box {
+            background-color: #f0f8ff;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>현재 비트코인 시세: ₩{{ "{:,}".format(price_krw) }} (1 BTC)</h2>
+
+    <div id="container">
+        <!-- 왼쪽: 차트 -->
+        <div id="chart-container">
+            <label for="period">기간 선택: </label>
+            <select id="period">
+                <option value="1">1일</option>
+                <option value="3">3일</option>
+                <option value="7" selected>7일</option>
+                <option value="30">30일</option>
+                <option value="90">90일</option>
+                <option value="180">180일</option>
+                <option value="365">365일</option>
+            </select>
+            <canvas id="priceChart"></canvas>
+        </div>
+
+        <!-- 오른쪽: 거래/수익 분석 -->
+        <div id="side-panel">
+            <h3>💰 비트코인 구매</h3>
+            <form method="POST">
+                <input type="number" step="0.00001" name="amount" placeholder="구매 수량 (BTC)" required>
+                <button type="submit">구매</button>
+            </form>
+
+            <h3>📊 손익 분석</h3>
+            {% if profit %}
+            <div class="profit-box">
+                <p>총 보유 수량: {{ "{:.5f}".format(profit.total_btc) }} BTC</p>
+                <p>평균 매입가: ${{ "{:,.2f}".format(profit.average_price) }}</p>
+                <p>현재 평가금액: ₩{{ "{:,.0f}".format(profit.current_total_krw) }}</p>
+                <p>총 매입금액: ₩{{ "{:,.0f}".format(profit.invested_total_krw) }}</p>
+                <p>손익: <b>{{ '+' if profit.profit_krw >= 0 else '' }}₩{{ "{:,.0f}".format(profit.profit_krw) }}</b></p>
+                <p>수익률: <b>{{ '+' if profit.profit_rate >= 0 else '' }}{{ "{:.2f}".format(profit.profit_rate) }}%</b></p>
+            </div>
+            {% else %}
+            <p>💡 아직 거래 내역이 없습니다.</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="section">
+        <h3>📜 구매 이력</h3>
+        {% if trade_history %}
+        <table border="1" cellpadding="8" cellspacing="0" style="margin: auto; background: #fff;">
+            <thead style="background-color: #ddd;">
+                <tr>
+                    <th>구매 시각</th>
+                    <th>개수 (BTC)</th>
+                    <th>가격 (USD/BTC)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for trade in trade_history %}
+                <tr>
+                    <td>{{ trade[0] }}</td>
+                    <td>{{ "{:.5f}".format(trade[1]) }}</td>
+                    <td>${{ "{:,.2f}".format(trade[2]) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>📭 거래 이력이 없습니다.</p>
+        {% endif %}
+    </div>
+
+    
+    <script>
+        const ctx = document.getElementById('priceChart').getContext('2d');
+        let chart;
+
+        function updateChart(days) {
+            fetch(`/get_data?days=${days}`)
+                .then(response => response.json())
+                .then(res => {
+                    const labels = res.labels;
+                    const data = res.data;
+
+                    if (chart) chart.destroy();
+
+                    chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'BTC 시세 (KRW)',
+                                data: data,
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                tension: 0.3,
+                                pointRadius: 0,
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                x: {
+                                    ticks: {
+                                        callback: function(val, index) {
+                                            return index % Math.ceil(labels.length / 6) === 0 ? this.getLabelForValue(val) : '';
+                                        }
+                                    }
+                                },
+                                y: {
+                                    beginAtZero: false,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '₩' + value.toLocaleString();
+                                        }
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: { display: false }
+                            }
+                        }
+                    });
+                });
+        }
+
+        updateChart(7);
+        document.getElementById('period').addEventListener('change', function () {
+            updateChart(this.value);
+        });
+    </script>
+
+</body>
+</html>
