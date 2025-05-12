@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime
 import requests
 
+from db_check import *
 class BitcoinApp:
     def __init__(self):
         self.app = Flask(__name__)
@@ -19,7 +20,9 @@ class BitcoinApp:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 amount REAL NOT NULL,
                 price_per_btc REAL NOT NULL,
-                datetime TEXT NOT NULL
+                datetime TEXT NOT NULL,
+                money REAL NOT NULL
+                
             )
         ''')
         conn.commit()
@@ -86,21 +89,27 @@ class BitcoinApp:
 
         if not rows:
             return None
-
-        total_btc = sum(row[0] for row in rows)
-        total_usd = sum(row[0] * row[1] for row in rows)
-        average_price = total_usd / total_btc
-
-        current_price = self.get_current_btc_price()
+        
         rate = self.get_usd_to_krw()
+
+        total_btc = get_summary()['total_btc']
+        total_usd = sum(row[0] * row[1] for row in rows)
+        average_price = get_summary()['average_buy_price'] * rate
+        
+
+        current_price = self.get_current_btc_price() 
+        
 
         if current_price is None or rate is None:
             return None
 
         current_total_krw = current_price * total_btc * rate
-        invested_total_krw = total_usd * rate
+        invested_total_krw = average_price * total_btc
         profit = current_total_krw - invested_total_krw
         profit_rate = (profit / invested_total_krw) * 100
+        total_money = get_summary()['money'] *rate
+        print(total_money)
+        total_asset  = total_money + total_btc * average_price
 
         return {
             'total_btc': total_btc,
@@ -110,7 +119,9 @@ class BitcoinApp:
             'current_total_krw': current_total_krw,
             'invested_total_krw': invested_total_krw,
             'profit_krw': profit,
-            'profit_rate': profit_rate
+            'profit_rate': profit_rate,
+            'total_asset': total_asset,
+            'total_money' : total_money
         }
 
     # 🔹 라우팅 등록
@@ -118,8 +129,15 @@ class BitcoinApp:
         @self.app.route('/', methods=['GET', 'POST'])
         def index():
             if request.method == 'POST':
+
                 amount = float(request.form['amount'])
-                self.save_trade(amount)
+                      
+                action = request.form['action']  # "buy" 또는 "sell"
+                if action == 'buy':
+                   coin_controler(amount,self.get_current_btc_price(),1)
+                else:
+                   coin_controler(amount,self.get_current_btc_price(),0)
+
                 return redirect('/')
 
             current_price = self.get_current_btc_price()

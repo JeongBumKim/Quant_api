@@ -51,10 +51,61 @@
         }
 
         .profit-box {
-            background-color: #f0f8ff;
+            max-width: 600px;
+            margin: 20px auto;
             padding: 10px;
-            border-radius: 5px;
+            font-family: Arial, sans-serif;
         }
+
+        .section {
+            border-bottom: 1px solid #ddd;
+            padding: 10px 0;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section p {
+            margin: 6px 0;
+        }
+
+        .bold {
+            font-weight: bold;
+        }
+        .trade-form {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .trade-form input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .button-row button {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .button-row button.buy {
+            background-color: #4CAF50; /* 초록색 */
+            color: white;
+        }
+
+        .button-row button.sell {
+            background-color: #f44336; /* 빨간색 */
+            color: white;
+        }
+        
     </style>
 </head>
 <body>
@@ -80,27 +131,44 @@
         <!-- 오른쪽: 거래/수익 분석 -->
         <div id="side-panel">
             <h3>💰 비트코인 구매</h3>
-            <form method="POST">
-                <input type="number" step="0.00001" name="amount" placeholder="구매 수량 (BTC)" required>
-                <button type="submit">구매</button>
+            <form method="POST" class="trade-form">
+                <input type="number" step="0.00001" name="amount" placeholder="수량 (BTC)" required>
+                <div class="button-row">
+                    <button type="submit" name="action" value="buy" class="buy">구매</button>
+                    <button type="submit" name="action" value="sell" class="sell">판매</button>
+                </div>
             </form>
+     
+
 
             <h3>📊 손익 분석</h3>
             {% if profit %}
             <div class="profit-box">
-                <p>총 보유 수량: {{ "{:.5f}".format(profit.total_btc) }} BTC</p>
-                <p>평균 매입가: ${{ "{:,.2f}".format(profit.average_price) }}</p>
-                <p>현재 평가금액: ₩{{ "{:,.0f}".format(profit.current_total_krw) }}</p>
-                <p>총 매입금액: ₩{{ "{:,.0f}".format(profit.invested_total_krw) }}</p>
-                <p>손익: <b>{{ '+' if profit.profit_krw >= 0 else '' }}₩{{ "{:,.0f}".format(profit.profit_krw) }}</b></p>
-                <p>수익률: <b>{{ '+' if profit.profit_rate >= 0 else '' }}{{ "{:.2f}".format(profit.profit_rate) }}%</b></p>
-            </div>
+                <div class="section">
+                    <p>총 자산: ₩{{ "{:,.0f}".format(profit.total_asset) }}</p>
+                    <p>손익: <b class="bold">{{ '+' if profit.profit_krw >= 0 else '' }}₩{{ "{:,.0f}".format(profit.profit_krw) }}</b></p>
+                    <p>수익률: <b class="bold">{{ '+' if profit.profit_rate >= 0 else '' }}{{ "{:.2f}".format(profit.profit_rate) }}%</b></p>
+                </div>
+            
+                <!-- 중단 섹션 -->
+                <div class="section">
+                    <p>현금 보유액: ₩{{ "{:,.0f}".format(profit.total_money) }}</p>
+                    <p>총 보유 수량: {{ "{:.5f}".format(profit.total_btc) }} BTC</p>
+                </div>
+            
+                <!-- 하단 섹션 -->
+                <div class="section">
+                    <p>평균 매입가: ₩{{ "{:,.0f}".format(profit.average_price) }}</p>
+                    <p>현재 평가금액: ₩{{ "{:,.0f}".format(profit.current_total_krw) }}</p>
+                    <p>총 매입금액: ₩{{ "{:,.0f}".format(profit.invested_total_krw) }}</p>
+                </div>
+                </div>
             {% else %}
             <p>💡 아직 거래 내역이 없습니다.</p>
             {% endif %}
         </div>
     </div>
-    <div class="section">
+    <!-- <div class="section">
         <h3>📜 구매 이력</h3>
         {% if trade_history %}
         <table border="1" cellpadding="8" cellspacing="0" style="margin: auto; background: #fff;">
@@ -124,8 +192,38 @@
         {% else %}
         <p>📭 거래 이력이 없습니다.</p>
         {% endif %}
-    </div>
-
+    </div> -->
+    <script>
+        document.getElementById("trade-form").addEventListener("submit", function(e) {
+            e.preventDefault();
+        
+            const form = e.target;
+            const formData = new FormData(form);
+            const amount = formData.get("amount");
+            const action = form.querySelector("button[type='submit'][clicked='true']").value;
+        
+            fetch("/trade", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ amount: parseFloat(amount), action })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("trade-result").textContent = data.message;
+            });
+        
+            // 클릭 플래그 초기화
+            form.querySelectorAll("button[type='submit']").forEach(btn => btn.removeAttribute("clicked"));
+        });
+        
+        document.querySelectorAll("#trade-form button[type='submit']").forEach(btn => {
+            btn.addEventListener("click", function() {
+                this.setAttribute("clicked", "true");
+            });
+        });
+        </script>
     
     <script>
         const ctx = document.getElementById('priceChart').getContext('2d');

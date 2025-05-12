@@ -18,6 +18,13 @@ def add_summary_table():
     conn.commit()
     conn.close()
 
+def alter_summary_table_add_money():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("ALTER TABLE btc_summary ADD COLUMN money REAL DEFAULT 0")
+    conn.commit()
+    conn.close()
+
 
 # 현재 BTC 시세 (USD)
 def get_current_btc_price():
@@ -84,56 +91,80 @@ def get_summary():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT total_btc, average_buy_price, updated_at
+        SELECT total_btc, average_buy_price, updated_at, money
         FROM btc_summary
         ORDER BY updated_at DESC
         LIMIT 1
     ''')
     row = cursor.fetchone()
     conn.close()
-
+    currnet_price = get_current_btc_price()
     if row:
         return {
             'total_btc': row[0],
             'average_buy_price': row[1],
-            'updated_at': row[2]
+            'updated_at': row[2],
+            'current_price':currnet_price,
+            'money': row[3]
         }
     else:
         return None
     
 def insert_summary(total_btc, average_buy_price):
     """
-    btc_summary 테이블에 코인 총 보유량과 평균 매수 가격을 저장합니다.
-
-    :param total_btc: 총 보유 코인 개수 (float)
-    :param average_buy_price: 평균 매수 가격 (float)
+    기존 money 값을 유지한 채 새로운 summary row를 추가
     """
+    current_summary = get_summary()
+    if current_summary is None:
+        return  # 초기값 없음
+
+    money = current_summary['money']
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO btc_summary (total_btc, average_buy_price, updated_at)
-        VALUES (?, ?, ?)
-    ''', (total_btc, average_buy_price, now))
+        INSERT INTO btc_summary (total_btc, average_buy_price, updated_at, money)
+        VALUES (?, ?, ?, ?)
+    ''', (total_btc, average_buy_price, now, money))
     conn.commit()
     conn.close()
 
-def sell_coin(amount,price):
+
+def update_summary_money(new_money):
+    """
+    btc_summary 테이블에서 가장 최근 레코드의 money 값만 갱신합니다.
+
+    :param new_money: 갱신할 money 값 (float)
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE btc_summary
+        SET money = ?
+        WHERE id = (SELECT MAX(id) FROM btc_summary)
+    ''', (new_money,))
+    conn.commit()
+    conn.close()
+
+def coin_controler(amount,price,sell_buy_flag):
     total_coin = get_summary()['total_btc'] 
-    if total_coin < amount :
-        print("가지고 있는 코인 보다 많습니다.")
-        return 
-    remain_coin = total_coin - amount
-    income = amount * price
-    average_buy_price = calculate_profit_krw()
-    insert_summary(remain_coin,average_buy_price)
+    average_buy_price = get_summary()['average_buy_price']
+
+    if sell_buy_flag:
+        remain_coin = total_coin + amount
+        average_after_add = (average_buy_price * total_coin + amount * price) / (total_coin + amount)
+        insert_summary(remain_coin,average_after_add)
+    else:
+        if total_coin < amount :
+            print("가지고 있는 코인 보다 많습니다.")
+            return 
+        remain_coin = total_coin - amount
+        income = amount * price
+        currnet_money = get_summary()['money']
+        print("income :", income)
+        money = currnet_money + income
+        update_summary_money(money)
+        print(get_summary())
+        insert_summary(remain_coin,average_buy_price)
     
-
-# 실행
-if __name__ == "__main__":
-
-    sell_coin(1,10000)
-    calculate_profit_krw()
-    add_summary_table()
-    print(get_summary())
